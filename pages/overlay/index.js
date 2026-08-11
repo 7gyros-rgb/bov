@@ -8,8 +8,10 @@ import { computePoints } from "../../lib/points";
 const CARD_W = 220; // px when horizontal
 const CARD_H = 281; // natural height (ratio ~1.28 of 220px width)
 
-// How much cards overlap each other (as a fraction of the card dimension)
-const OVERLAP_FRACTION = 0.30; // 30% overlap
+// Overlap fraction per layout — vertical fans out nicely with overlap,
+// horizontal uses a plain gap (0 overlap) so cards sit side-by-side.
+const OVERLAP_HORIZ = 0.0;  // 0% = spaced out, matching vertical feel
+const OVERLAP_VERT  = 0.30; // 30% overlap for vertical stack
 
 export default function OverlayAll() {
   const { state } = useScoreboard(1000);
@@ -21,10 +23,10 @@ export default function OverlayAll() {
     (a, b) => computePoints(b.form || []) - computePoints(a.form || [])
   );
 
-  // For vertical: highest points at TOP (index 0), lowest at BOTTOM
-  // For horizontal: highest points on RIGHT (last index), lowest on LEFT (first)
-  // So for horiz we reverse the array so lowest-ranked appears first (leftmost)
-  const displayTeams = isHoriz ? [...sortedTeams].reverse() : sortedTeams;
+  // Vertical:   highest points at TOP   (index 0), lowest at BOTTOM
+  // Horizontal: highest points at LEFT  (index 0), lowest at RIGHT
+  // sortedTeams is already highest-first, so use it directly for both.
+  const displayTeams = sortedTeams;
 
   // Track previous order for animation
   const prevOrderRef = useRef(null);
@@ -37,8 +39,8 @@ export default function OverlayAll() {
   function getOffset(idx, total, horizontal) {
     if (total === 0) return 0;
     const step = horizontal
-      ? CARD_W * (1 - OVERLAP_FRACTION)
-      : CARD_H * (1 - OVERLAP_FRACTION);
+      ? CARD_W  * (1 - OVERLAP_HORIZ)   // full card width — no overlap
+      : CARD_H  * (1 - OVERLAP_VERT);   // 30% overlap for vertical
     return idx * step;
   }
 
@@ -102,11 +104,12 @@ export default function OverlayAll() {
           overflow: "visible",
         }}
       >
-        {/* Render lowest-ranked first so highest-ranked (most points) renders on top */}
+        {/* Render lowest-ranked first so highest-ranked renders on top (vertical z-index) */}
         {[...displayTeams].reverse().map((t, revIdx) => {
-          const idx = n - 1 - revIdx; // actual position index
+          const idx = n - 1 - revIdx; // actual position index (0 = highest ranked)
           const offset = positions[t.id] ?? getOffset(idx, n, isHoriz);
-          const zIndex = idx + 1; // highest rank (idx 0) gets highest z-index
+          // Vertical: highest rank on top. Horizontal: all same level (no overlap).
+          const zIndex = isHoriz ? 1 : idx + 1;
 
           return (
             <div

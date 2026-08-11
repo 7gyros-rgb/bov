@@ -130,6 +130,28 @@ export default function Admin() {
     updateTeam(teamId, { form: (t.form || []).slice(0, -1) });
   }
 
+  async function resetPlayers() {
+    if (!confirm("Reset ALL players back to '-' and clear all results? This cannot be undone.")) return;
+    setSaveStatus("Resetting…");
+    try {
+      const res = await fetch("/api/reset", {
+        method: "POST",
+        headers: { "x-admin-key": pw },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSaveStatus(data.error || "Reset failed.");
+        return;
+      }
+      setTeams(data.teams);
+      setLayout(data.layout || "vertical");
+      setSaveStatus("Reset ✓");
+      setTimeout(() => setSaveStatus(""), 2000);
+    } catch (e) {
+      setSaveStatus("Reset failed — check connection.");
+    }
+  }
+
   if (!pw) {
     return (
       <div className="login-box">
@@ -179,6 +201,20 @@ export default function Admin() {
           <div className="links">
             <a href="/overlay" target="_blank" rel="noreferrer">Open overlay →</a>
           </div>
+          <button
+            className="icon-btn"
+            style={{
+              fontWeight: 700,
+              fontSize: 14,
+              padding: "8px 16px",
+              background: "#ffe3e3",
+              color: "#c92a2a",
+              border: "1.5px solid #ffa8a8",
+            }}
+            onClick={resetPlayers}
+          >
+            🔄 Reset all players to -
+          </button>
         </div>
       </div>
 

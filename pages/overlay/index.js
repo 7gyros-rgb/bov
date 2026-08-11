@@ -16,8 +16,8 @@ export default function OverlayAll() {
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
-          gap: 14,
-          padding: 16,
+          gap: 0,
+          padding: 0,
           width: 360,
         }}
       >

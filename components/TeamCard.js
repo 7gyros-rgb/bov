@@ -192,7 +192,10 @@ export default function TeamCard({ name, color, players, form }) {
   const fullForm = form || [];
   const shownForm = fullForm.slice(-5); // strip only shows the last 5
   const points = computePoints(fullForm); // but points count the whole season
-  const list = players && players.length ? players : [""];
+  const list = players && players.length
+    ? players.filter((p) => p !== "")
+    : [];
+  if (list.length === 0) list.push("-");
   const rows = groupIntoRows(list);
   const rowYs = getRowYPositions(rows.length);
  
@@ -309,7 +312,7 @@ export default function TeamCard({ name, color, players, form }) {
                 textAnchor="middle"
                 dominantBaseline="central"
               >
-                {`- ${row[0]}`}
+                {row[0]}
               </text>
               <text
                 x={CENTER_X + pairOffset}
@@ -320,7 +323,7 @@ export default function TeamCard({ name, color, players, form }) {
                 textAnchor="middle"
                 dominantBaseline="central"
               >
-                {`- ${row[1]}`}
+                {row[1]}
               </text>
             </g>
           );
@@ -337,16 +340,11 @@ export default function TeamCard({ name, color, players, form }) {
             textAnchor="middle"
             dominantBaseline="central"
           >
-            {`- ${row[0]}`}
+            {row[0]}
           </text>
         );
       })}
     </svg>
-  );
-
-
-
-
 
 
 

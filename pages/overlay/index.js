@@ -4,74 +4,91 @@ import TeamCard from "../../components/TeamCard";
 import { useScoreboard } from "../../lib/useScoreboard";
 import { computePoints } from "../../lib/points";
 
-// ── Card dimensions ──────────────────────────────────────────────────────────
-// The SVG viewBox is 334×281. We render at CARD_W wide, so the actual
-// rendered height is CARD_W × (281/334).
-const CARD_W = 220;
-const CARD_H = Math.round(CARD_W * (281 / 334)); // ≈ 185 px
+// Card dimensions (must match TeamCard's internal VIEW_W / VIEW_H ratio)
+const CARD_W = 220; // px when horizontal
+const CARD_H = 281; // natural height (ratio ~1.28 of 220px width)
 
-// ── Layout constants ─────────────────────────────────────────────────────────
-const HORIZ_GAP   = 14;   // px gap between cards in horizontal mode
-const VERT_OVERLAP = 0.30; // 30 % overlap in vertical mode
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function getOffset(idx, horizontal) {
-  if (horizontal) return idx * (CARD_W + HORIZ_GAP);
-  return idx * CARD_H * (1 - VERT_OVERLAP);
-}
+// Overlap fraction per layout — vertical fans out nicely with overlap,
+// horizontal uses a plain gap (0 overlap) so cards sit side-by-side.
+const OVERLAP_HORIZ = 0.0;  // 0% = spaced out, matching vertical feel
+const OVERLAP_VERT  = 0.30; // 30% overlap for vertical stack
 
 export default function OverlayAll() {
   const { state } = useScoreboard(1000);
   const isHoriz = state?.layout === "horizontal";
   const allTeams = state?.teams?.filter((t) => !t.hidden) ?? [];
 
-  // Sorted highest → lowest points.
-  // Vertical:   index 0 = TOP   (highest pts)
-  // Horizontal: index 0 = LEFT  (highest pts), last index = RIGHT (lowest pts)
-  const displayTeams = [...allTeams].sort(
+  // Sort by points: highest first (will map to top/right)
+  const sortedTeams = [...allTeams].sort(
     (a, b) => computePoints(b.form || []) - computePoints(a.form || [])
   );
 
+  // Vertical:   highest points at TOP   (index 0), lowest at BOTTOM
+  // Horizontal: highest points at LEFT  (index 0), lowest at RIGHT
+  // sortedTeams is already highest-first, so use it directly for both.
+  const displayTeams = sortedTeams;
+
+  // Track previous order for animation
+  const prevOrderRef = useRef(null);
+  const [positions, setPositions] = useState({});
+  const [animating, setAnimating] = useState(false);
+
   const n = displayTeams.length;
 
-  // ── Animation: track each team's pixel offset and animate when order changes
-  const prevIdsRef = useRef(null);
-  const [positions, setPositions]   = useState({});
-  const [animating, setAnimating]   = useState(false);
+  // Calculate pixel offset for each card based on its rank
+  function getOffset(idx, total, horizontal) {
+    if (total === 0) return 0;
+    const step = horizontal
+      ? CARD_W  * (1 - OVERLAP_HORIZ)   // full card width — no overlap
+      : CARD_H  * (1 - OVERLAP_VERT);   // 30% overlap for vertical
+    return idx * step;
+  }
 
-  // Set positions immediately (no animation) when layout mode or team count changes
+  // On first render or team count change, set positions immediately (no animation)
   useEffect(() => {
-    if (n === 0) return;
-    const next = {};
-    displayTeams.forEach((t, i) => { next[t.id] = getOffset(i, isHoriz); });
-    setPositions(next);
-    prevIdsRef.current = displayTeams.map((t) => t.id);
+    if (displayTeams.length === 0) return;
+    const initial = {};
+    displayTeams.forEach((t, idx) => {
+      initial[t.id] = getOffset(idx, displayTeams.length, isHoriz);
+    });
+    setPositions(initial);
+    prevOrderRef.current = displayTeams.map((t) => t.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHoriz, n]);
+  }, [isHoriz, displayTeams.length]);
 
-  // Animate to new positions when point-order changes
-  const orderKey = displayTeams.map((t) => t.id).join(",");
+  // When order changes, animate to new positions
   useEffect(() => {
-    if (n === 0) return;
-    const prev = prevIdsRef.current;
+    if (displayTeams.length === 0) return;
+    const newOrder = displayTeams.map((t) => t.id);
+    const prev = prevOrderRef.current;
     if (!prev) return;
-    const changed = prev.length !== n || prev.some((id, i) => id !== displayTeams[i]?.id);
-    if (!changed) return;
 
-    setAnimating(true);
-    const next = {};
-    displayTeams.forEach((t, i) => { next[t.id] = getOffset(i, isHoriz); });
-    setPositions(next);
-    prevIdsRef.current = displayTeams.map((t) => t.id);
-    const t = setTimeout(() => setAnimating(false), 700);
-    return () => clearTimeout(t);
+    const orderChanged =
+      newOrder.length !== prev.length ||
+      newOrder.some((id, i) => id !== prev[i]);
+
+    if (orderChanged) {
+      setAnimating(true);
+      const next = {};
+      displayTeams.forEach((t, idx) => {
+        next[t.id] = getOffset(idx, displayTeams.length, isHoriz);
+      });
+      setPositions(next);
+      prevOrderRef.current = newOrder;
+      const timeout = setTimeout(() => setAnimating(false), 700);
+      return () => clearTimeout(timeout);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderKey, isHoriz]);
+  }, [displayTeams.map((t) => t.id).join(","), isHoriz]);
 
   if (n === 0) return null;
 
-  const containerW = isHoriz ? n * CARD_W + (n - 1) * HORIZ_GAP : CARD_W;
-  const containerH = isHoriz ? CARD_H : CARD_H + getOffset(n - 1, false);
+  const containerW = isHoriz
+    ? CARD_W + getOffset(n - 1, n, true)
+    : CARD_W;
+  const containerH = isHoriz
+    ? CARD_H
+    : CARD_H + getOffset(n - 1, n, false);
 
   return (
     <>
@@ -87,22 +104,22 @@ export default function OverlayAll() {
           overflow: "visible",
         }}
       >
-        {/* Render lowest-ranked first so highest-ranked is painted on top (vertical) */}
+        {/* Render lowest-ranked first so highest-ranked renders on top (vertical z-index) */}
         {[...displayTeams].reverse().map((t, revIdx) => {
-          const idx    = n - 1 - revIdx;
-          const offset = positions[t.id] ?? getOffset(idx, isHoriz);
-          const zIndex = isHoriz ? 1 : idx + 1; // vertical: highest pts on top
+          const idx = n - 1 - revIdx; // actual position index (0 = highest ranked)
+          const offset = positions[t.id] ?? getOffset(idx, n, isHoriz);
+          // Vertical: highest rank on top. Horizontal: all same level (no overlap).
+          const zIndex = isHoriz ? 1 : idx + 1;
 
           return (
             <div
               key={t.id}
               style={{
-                position:   "absolute",
-                width:      CARD_W,
-                height:     CARD_H,
-                left:       isHoriz ? offset : 0,
-                top:        isHoriz ? 0      : offset,
-                zIndex,
+                position: "absolute",
+                width: CARD_W,
+                left: isHoriz ? offset : 0,
+                top: isHoriz ? 0 : offset,
+                zIndex: zIndex,
                 transition: animating
                   ? "left 0.65s cubic-bezier(0.4,0,0.2,1), top 0.65s cubic-bezier(0.4,0,0.2,1)"
                   : "none",

@@ -345,7 +345,8 @@ export default function TeamCard({ name, color, players, form }) {
         );
       })}
     </svg>
-
+  );
+}
 
 
 

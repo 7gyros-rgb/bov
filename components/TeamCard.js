@@ -150,8 +150,6 @@ function PitchBackground({ color }) {
       <circle cx={CX} cy={MID} r={CCR} />
       <circle cx={CX} cy={MID} r={2.2} fill={pc} stroke="none" />
 
-      {/* ── Vertical connector: center spot → top of bottom penalty box ── */}
-      <line x1={CX} y1={MID} x2={CX} y2={B - PBH} />
 
       {/* ── TOP penalty area ── */}
       <rect x={CX - PBW2} y={T}        width={PITCH_PB_W} height={PBH} />
@@ -311,7 +309,7 @@ export default function TeamCard({ name, color, players, form }) {
                 textAnchor="middle"
                 dominantBaseline="central"
               >
-                {row[0]}
+                {`- ${row[0]}`}
               </text>
               <text
                 x={CENTER_X + pairOffset}
@@ -322,7 +320,7 @@ export default function TeamCard({ name, color, players, form }) {
                 textAnchor="middle"
                 dominantBaseline="central"
               >
-                {row[1]}
+                {`- ${row[1]}`}
               </text>
             </g>
           );
@@ -339,16 +337,12 @@ export default function TeamCard({ name, color, players, form }) {
             textAnchor="middle"
             dominantBaseline="central"
           >
-            {row[0]}
+            {`- ${row[0]}`}
           </text>
         );
       })}
     </svg>
   );
-}
- 
-
-
 
 
 

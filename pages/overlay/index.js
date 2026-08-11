@@ -1,11 +1,92 @@
 import Head from "next/head";
+import { useEffect, useRef, useState } from "react";
 import TeamCard from "../../components/TeamCard";
 import { useScoreboard } from "../../lib/useScoreboard";
+import { computePoints } from "../../lib/points";
+
+// Card dimensions (must match TeamCard's internal VIEW_W / VIEW_H ratio)
+const CARD_W = 220; // px when horizontal
+const CARD_H = 281; // natural height (ratio ~1.28 of 220px width)
+
+// How much cards overlap each other (as a fraction of the card dimension)
+const OVERLAP_FRACTION = 0.30; // 30% overlap
 
 export default function OverlayAll() {
   const { state } = useScoreboard(1000);
   const isHoriz = state?.layout === "horizontal";
-  const visibleTeams = state?.teams?.filter((t) => !t.hidden) ?? [];
+  const allTeams = state?.teams?.filter((t) => !t.hidden) ?? [];
+
+  // Sort by points: highest first (will map to top/right)
+  const sortedTeams = [...allTeams].sort(
+    (a, b) => computePoints(b.form || []) - computePoints(a.form || [])
+  );
+
+  // For vertical: highest points at TOP (index 0), lowest at BOTTOM
+  // For horizontal: highest points on RIGHT (last index), lowest on LEFT (first)
+  // So for horiz we reverse the array so lowest-ranked appears first (leftmost)
+  const displayTeams = isHoriz ? [...sortedTeams].reverse() : sortedTeams;
+
+  // Track previous order for animation
+  const prevOrderRef = useRef(null);
+  const [positions, setPositions] = useState({});
+  const [animating, setAnimating] = useState(false);
+
+  const n = displayTeams.length;
+
+  // Calculate pixel offset for each card based on its rank
+  function getOffset(idx, total, horizontal) {
+    if (total === 0) return 0;
+    const step = horizontal
+      ? CARD_W * (1 - OVERLAP_FRACTION)
+      : CARD_H * (1 - OVERLAP_FRACTION);
+    return idx * step;
+  }
+
+  // On first render or team count change, set positions immediately (no animation)
+  useEffect(() => {
+    if (displayTeams.length === 0) return;
+    const initial = {};
+    displayTeams.forEach((t, idx) => {
+      initial[t.id] = getOffset(idx, displayTeams.length, isHoriz);
+    });
+    setPositions(initial);
+    prevOrderRef.current = displayTeams.map((t) => t.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHoriz, displayTeams.length]);
+
+  // When order changes, animate to new positions
+  useEffect(() => {
+    if (displayTeams.length === 0) return;
+    const newOrder = displayTeams.map((t) => t.id);
+    const prev = prevOrderRef.current;
+    if (!prev) return;
+
+    const orderChanged =
+      newOrder.length !== prev.length ||
+      newOrder.some((id, i) => id !== prev[i]);
+
+    if (orderChanged) {
+      setAnimating(true);
+      const next = {};
+      displayTeams.forEach((t, idx) => {
+        next[t.id] = getOffset(idx, displayTeams.length, isHoriz);
+      });
+      setPositions(next);
+      prevOrderRef.current = newOrder;
+      const timeout = setTimeout(() => setAnimating(false), 700);
+      return () => clearTimeout(timeout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayTeams.map((t) => t.id).join(","), isHoriz]);
+
+  if (n === 0) return null;
+
+  const containerW = isHoriz
+    ? CARD_W + getOffset(n - 1, n, true)
+    : CARD_W;
+  const containerH = isHoriz
+    ? CARD_H
+    : CARD_H + getOffset(n - 1, n, false);
 
   return (
     <>
@@ -15,22 +96,41 @@ export default function OverlayAll() {
       <div
         style={{
           background: "transparent",
-          display: "flex",
-          flexDirection: isHoriz ? "row" : "column",
-          alignItems: isHoriz ? "flex-start" : "stretch",
-          gap: 0,
-          padding: 0,
-          width: isHoriz ? visibleTeams.length * 220 : 360,
+          position: "relative",
+          width: containerW,
+          height: containerH,
+          overflow: "visible",
         }}
       >
-        {visibleTeams.map((t) => (
-          <div
-            key={t.id}
-            style={isHoriz ? { width: 220, flexShrink: 0 } : {}}
-          >
-            <TeamCard name={t.name} color={t.color} players={t.players} form={t.form} />
-          </div>
-        ))}
+        {/* Render lowest-ranked first so highest-ranked (most points) renders on top */}
+        {[...displayTeams].reverse().map((t, revIdx) => {
+          const idx = n - 1 - revIdx; // actual position index
+          const offset = positions[t.id] ?? getOffset(idx, n, isHoriz);
+          const zIndex = idx + 1; // highest rank (idx 0) gets highest z-index
+
+          return (
+            <div
+              key={t.id}
+              style={{
+                position: "absolute",
+                width: CARD_W,
+                left: isHoriz ? offset : 0,
+                top: isHoriz ? 0 : offset,
+                zIndex: zIndex,
+                transition: animating
+                  ? "left 0.65s cubic-bezier(0.4,0,0.2,1), top 0.65s cubic-bezier(0.4,0,0.2,1)"
+                  : "none",
+              }}
+            >
+              <TeamCard
+                name={t.name}
+                color={t.color}
+                players={t.players}
+                form={t.form}
+              />
+            </div>
+          );
+        })}
       </div>
     </>
   );

@@ -2,7 +2,9 @@ import { readState, writeState, isKvConfigured } from "../../lib/store";
 
 export default async function handler(req, res) {
   // Overlay/admin polling should never get cached by the browser or a CDN.
-  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("CDN-Cache-Control", "no-store");
+  res.setHeader("Vercel-CDN-Cache-Control", "no-store");
 
   if (req.method === "GET") {
     const state = await readState();

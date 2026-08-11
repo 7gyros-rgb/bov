@@ -29,7 +29,7 @@ export default function Admin() {
 
   async function load() {
     try {
-      const res = await fetch("/api/state", { cache: "no-store" });
+      const res = await fetch(`/api/state?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       setTeams(data.teams);
       setKvConfigured(data.kvConfigured);

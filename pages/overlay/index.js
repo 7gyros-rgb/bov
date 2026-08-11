@@ -21,7 +21,7 @@ export default function OverlayAll() {
           width: 360,
         }}
       >
-        {state?.teams?.map((t) => (
+        {state?.teams?.filter((t) => !t.hidden).map((t) => (
           <div key={t.id}>
             <TeamCard name={t.name} color={t.color} players={t.players} form={t.form} />
           </div>

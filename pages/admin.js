@@ -109,6 +109,12 @@ export default function Admin() {
     updateTeam(teamId, { form: [...(t.form || []), result] });
   }
 
+  function toggleHidden(teamId) {
+    scheduleSave(teams.map((t) =>
+      t.id === teamId ? { ...t, hidden: !t.hidden } : t
+    ));
+  }
+
   function undoResult(teamId) {
     const t = teams.find((x) => x.id === teamId);
     updateTeam(teamId, { form: (t.form || []).slice(0, -1) });
@@ -168,7 +174,11 @@ export default function Admin() {
         <p>Loading…</p>
       ) : (
         teams.map((t) => (
-          <div className="team-block" key={t.id}>
+          <div
+            className="team-block"
+            key={t.id}
+            style={t.hidden ? { opacity: 0.45, filter: "grayscale(0.6)" } : {}}
+          >
             <div>
               <div className="card-preview">
                 <TeamCard name={t.name} color={t.color} players={t.players} form={t.form} />
@@ -176,9 +186,23 @@ export default function Admin() {
             </div>
 
             <div>
-              <h2 style={{ fontFamily: "Lilita One, sans-serif", margin: "0 0 8px" }}>
-                {t.name} — {computePoints(t.form)} pts
-              </h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <h2 style={{ fontFamily: "Lilita One, sans-serif", margin: 0 }}>
+                  {t.name} — {computePoints(t.form)} pts
+                </h2>
+                <button
+                  className="icon-btn"
+                  style={{
+                    background: t.hidden ? "#ffe8cc" : "#d3f9d8",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    whiteSpace: "nowrap",
+                  }}
+                  onClick={() => toggleHidden(t.id)}
+                >
+                  {t.hidden ? "👁 Show" : "🙈 Hide"}
+                </button>
+              </div>
 
               <p className="muted" style={{ marginBottom: 4 }}>
                 Players ({t.players.length}/{MAX_PLAYERS})

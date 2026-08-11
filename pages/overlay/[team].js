@@ -25,12 +25,12 @@ export default function OverlayTeam() {
           justifyContent: "center",
         }}
       >
-        {t ? (
+        {t && !t.hidden ? (
           <div style={{ width: "90vw", maxWidth: 500 }}>
             <TeamCard name={t.name} color={t.color} players={t.players} form={t.form} />
           </div>
         ) : (
-          state && (
+          state && !t?.hidden && (
             <p style={{ fontFamily: "sans-serif", color: "#888" }}>
               No team with id "{team}". Valid ids: {state.teams.map((x) => x.id).join(", ")}
             </p>

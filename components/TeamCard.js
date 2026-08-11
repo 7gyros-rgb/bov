@@ -145,6 +145,16 @@ function PitchBackground({ color }) {
   );
 }
  
+// Calculates the largest font size that keeps `name` within `maxPx` wide.
+// charFactor is the average glyph width as a fraction of the font size
+// for Lilita One (empirically ~0.62 for upper-case heavy strings).
+function fitFontSize(name, maxPx, baseFontSize, charFactor = 0.62, minSize = 11) {
+  if (!name || name.length === 0) return baseFontSize;
+  const needed = name.length * baseFontSize * charFactor;
+  if (needed <= maxPx) return baseFontSize;
+  return Math.max(minSize, Math.floor(maxPx / (name.length * charFactor)));
+}
+
 export default function TeamCard({ name, color, players, form }) {
   const fullForm = form || [];
   const shownForm = fullForm.slice(-5); // strip only shows the last 5
@@ -153,8 +163,13 @@ export default function TeamCard({ name, color, players, form }) {
   const rows = groupIntoRows(list);
   const rowYs = getRowYPositions(rows.length);
  
-  const fontSize = rows.length <= 1 ? 36 : rows.length === 2 ? 32 : 27;
+  const baseFontSize = rows.length <= 1 ? 36 : rows.length === 2 ? 32 : 27;
   const pairOffset = 82;
+  // Max pixel width available for a name in each layout:
+  //   pair slot  → center ± pairOffset, so each half-span is ~(CENTER_X - pairOffset - PITCH_LEFT) = ~59px each side → 118px safe zone
+  //   single/centered → full pitch width minus padding → ~240px
+  const PAIR_MAX_W = 118;
+  const SOLO_MAX_W = 240;
  
   // Header: right-anchor the PTS text to the card edge, then work out where
   // the icon needs to sit so it clears the text with a steady gap no matter
@@ -243,19 +258,23 @@ export default function TeamCard({ name, color, players, form }) {
       })()}
  
       {/* player names — pinned to pitch landmarks: top zone, halfway line,
-          and inside the penalty box (see getRowYPositions) */}
+          and inside the penalty box (see getRowYPositions).
+          Each name is individually sized down if it's too long to fit. */}
       {rows.map((row, ri) => {
         const y = rowYs[ri];
         if (row.length === 2) {
+          const fs0 = fitFontSize(row[0], PAIR_MAX_W, baseFontSize);
+          const fs1 = fitFontSize(row[1], PAIR_MAX_W, baseFontSize);
           return (
             <g key={ri}>
               <text
                 x={CENTER_X - pairOffset}
                 y={y}
                 fontFamily="'Lilita One', sans-serif"
-                fontSize={fontSize}
+                fontSize={fs0}
                 fill="#1e1e1e"
                 textAnchor="middle"
+                dominantBaseline="central"
               >
                 {row[0]}
               </text>
@@ -263,24 +282,27 @@ export default function TeamCard({ name, color, players, form }) {
                 x={CENTER_X + pairOffset}
                 y={y}
                 fontFamily="'Lilita One', sans-serif"
-                fontSize={fontSize}
+                fontSize={fs1}
                 fill="#1e1e1e"
                 textAnchor="middle"
+                dominantBaseline="central"
               >
                 {row[1]}
               </text>
             </g>
           );
         }
+        const fs = fitFontSize(row[0], SOLO_MAX_W, baseFontSize);
         return (
           <text
             key={ri}
             x={CENTER_X}
             y={y}
             fontFamily="'Lilita One', sans-serif"
-            fontSize={fontSize}
+            fontSize={fs}
             fill="#1e1e1e"
             textAnchor="middle"
+            dominantBaseline="central"
           >
             {row[0]}
           </text>

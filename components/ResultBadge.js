@@ -12,11 +12,12 @@ export default function ResultBadge({ result, x, y, size = 1 }) {
       <path d={shape.strokePath} stroke="#1e1e1e" strokeWidth="4" fill="none" />
       <text
         x="19.5"
-        y="24"
+        y="15.5"
         fontFamily="'Lilita One', sans-serif"
-        fontSize="24"
+        fontSize="22"
         fill="#1e1e1e"
         textAnchor="middle"
+        dominantBaseline="central"
       >
         {result}
       </text>

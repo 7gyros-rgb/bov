@@ -8,14 +8,35 @@ import { computePoints } from "../lib/points";
 const VIEW_W = 334;
 const VIEW_H = 281;
 const CENTER_X = VIEW_W / 2;
+
+// ---- Pitch colour — team colours that look washed-out on the white card panel
+// get automatically darkened so the lines are always legible. ----
+function getPitchColor(hex) {
+  // Parse hex to r/g/b (3 or 6 digit)
+  const c = hex.replace("#", "");
+  const r = parseInt(c.length === 3 ? c[0] + c[0] : c.slice(0, 2), 16) / 255;
+  const g = parseInt(c.length === 3 ? c[1] + c[1] : c.slice(2, 4), 16) / 255;
+  const b = parseInt(c.length === 3 ? c[2] + c[2] : c.slice(4, 6), 16) / 255;
+  // Perceived luminance (sRGB approximation)
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  // If the color is too light, darken it by multiplying channels
+  if (lum > 0.55) {
+    const factor = 0.45;
+    const dr = Math.round(r * 255 * factor);
+    const dg = Math.round(g * 255 * factor);
+    const db = Math.round(b * 255 * factor);
+    return `rgb(${dr},${dg},${db})`;
+  }
+  return hex;
+}
  
 // ---- Pitch background — tweak these if you want it bigger/thicker/etc ----
 const PITCH_LEFT = 26;
 const PITCH_RIGHT = 308;
 const PITCH_TOP = 114;
 const PITCH_BOTTOM = 264;
-const PITCH_STROKE_WIDTH = 2.2; // "a little bit thicker" lives here
-const PITCH_OPACITY = 0.85; // how strong the team-colour lines look
+const PITCH_STROKE_WIDTH = 2.8; // "a little bit thicker" lives here
+const PITCH_OPACITY = 1.0; // how strong the team-colour lines look
  
 const PITCH_MID_Y = (PITCH_TOP + PITCH_BOTTOM) / 2; // halfway line, y = 189
 const BOX_WIDTH = 96;
@@ -71,13 +92,14 @@ function getRowYPositions(nRows) {
 }
  
 function PitchBackground({ color }) {
+  const pitchColor = getPitchColor(color);
   const cornerR = 10;
   const circleR = 34; // half-pitch centre circle, cut by the halfway line
   const dArcR = 28; // penalty arc "D" bulging above the box's open edge
  
   return (
     <g
-      stroke={color}
+      stroke={pitchColor}
       strokeWidth={PITCH_STROKE_WIDTH}
       fill="none"
       opacity={PITCH_OPACITY}
@@ -205,14 +227,20 @@ export default function TeamCard({ name, color, players, form }) {
       </text>
       <FootballIcon x={ptsIconX} y={PTS_ICON_Y} size={PTS_ICON_SIZE} />
  
-      {/* recent form badges — left aligned, empty until results are added */}
-      {shownForm.length > 0 && (
-        <g transform="translate(20 60)">
-          {shownForm.map((r, i) => (
-            <ResultBadge key={i} result={r} x={i * 48} y={0} size={1.1} />
-          ))}
-        </g>
-      )}
+      {/* recent form badges — centered horizontally */}
+      {shownForm.length > 0 && (() => {
+        const badgeSpacing = 48;
+        const badgeWidth = 39 * 1.1; // native width × scale
+        const totalWidth = (shownForm.length - 1) * badgeSpacing + badgeWidth;
+        const startX = (VIEW_W - totalWidth) / 2;
+        return (
+          <g transform={`translate(${startX} 60)`}>
+            {shownForm.map((r, i) => (
+              <ResultBadge key={i} result={r} x={i * badgeSpacing} y={0} size={1.1} />
+            ))}
+          </g>
+        );
+      })()}
  
       {/* player names — pinned to pitch landmarks: top zone, halfway line,
           and inside the penalty box (see getRowYPositions) */}

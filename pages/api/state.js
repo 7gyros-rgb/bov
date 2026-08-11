@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid payload." });
     }
 
-    const saved = await writeState({ teams: body.teams });
+    const saved = await writeState({ teams: body.teams, layout: body.layout ?? "vertical" });
     return res.status(200).json({ ...saved, kvConfigured: isKvConfigured() });
   }
 

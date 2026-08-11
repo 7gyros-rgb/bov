@@ -35,20 +35,32 @@ const PITCH_LEFT = 26;
 const PITCH_RIGHT = 308;
 const PITCH_TOP = 114;
 const PITCH_BOTTOM = 264;
-const PITCH_STROKE_WIDTH = 2.8; // "a little bit thicker" lives here
-const PITCH_OPACITY = 1.0; // how strong the team-colour lines look
- 
-const PITCH_MID_Y = (PITCH_TOP + PITCH_BOTTOM) / 2; // halfway line, y = 189
-const BOX_WIDTH = 96;
-const BOX_TOP = PITCH_BOTTOM - 34; // y = 230
-const BOX_MID_Y = (BOX_TOP + PITCH_BOTTOM) / 2; // centre of the penalty box, y = 247
- 
-// Player-name row baselines, pinned to pitch landmarks instead of an even
-// generic split:
-//   3 rows -> near the halfway line / mid-pitch / inside the penalty box
-//   2 rows -> near the halfway line / inside the penalty box
-//   1 row  -> mid-pitch
-const TOP_ROW_Y = PITCH_TOP + (PITCH_MID_Y - PITCH_TOP) * 0.37; // ~142
+const PITCH_STROKE_WIDTH = 1.8;
+const PITCH_OPACITY = 1.0;
+
+const PITCH_W = PITCH_RIGHT - PITCH_LEFT;  // 282
+const PITCH_H = PITCH_BOTTOM - PITCH_TOP;  // 150
+const PITCH_CX = (PITCH_LEFT + PITCH_RIGHT) / 2; // 167
+const PITCH_MID_Y = (PITCH_TOP + PITCH_BOTTOM) / 2; // 189  — halfway line
+
+// Full-pitch geometry (proportional to a real 105m × 68m pitch at our pixel scale)
+const PITCH_PB_W = 168; // penalty box width  (40.3m / 68m × 282px)
+const PITCH_PB_H = 30;  // penalty box height (16.5m / 105m × 150px, boosted slightly for readability)
+const PITCH_GB_W = 80;  // goal area width    (18.3m / 68m × 282px)
+const PITCH_GB_H = 12;  // goal area height   (5.5m  / 105m × 150px, boosted for readability)
+const PITCH_CCR  = 20;  // center circle radius
+const PITCH_CR   = 8;   // corner arc radius
+const PITCH_PS   = 18;  // penalty spot distance from goal line
+const PITCH_DARC = 14;  // penalty "D" arc radius
+
+// Player-name row Y positions, anchored to pitch zones:
+//   top zone   — between top penalty box bottom and the top of the center circle
+//   mid zone   — on the halfway line
+//   bottom zone — between the bottom of the center circle and the bottom penalty box top
+const _TOP_PB_BOTTOM = PITCH_TOP  + PITCH_PB_H; // 144
+const _BOT_PB_TOP    = PITCH_BOTTOM - PITCH_PB_H; // 234
+const TOP_ZONE_Y  = (_TOP_PB_BOTTOM + (PITCH_MID_Y - PITCH_CCR)) / 2; // ~157
+const BOT_ZONE_Y  = ((PITCH_MID_Y + PITCH_CCR) + _BOT_PB_TOP) / 2;  // ~221
 // ---------------------------------------------------------------------------
  
 // ---- Header row: team name (left) + football icon & "N PTS" (right) -----
@@ -78,69 +90,92 @@ function groupIntoRows(players) {
   return rows;
 }
  
-// Maps a row count to the y-baselines those rows should sit on, anchored to
-// the pitch's own features rather than dividing the panel evenly.
+// Maps row count to y-positions anchored to the full-pitch zones.
 function getRowYPositions(nRows) {
   if (nRows <= 1) return [PITCH_MID_Y];
-  if (nRows === 2) return [TOP_ROW_Y, BOX_MID_Y];
-  if (nRows === 3) return [TOP_ROW_Y, PITCH_MID_Y, BOX_MID_Y];
-  // Defensive fallback for >3 rows (shouldn't happen at up to 6 players)
-  const top = PITCH_TOP + 28;
-  const bottom = BOX_MID_Y;
-  const step = (bottom - top) / (nRows - 1);
+  if (nRows === 2) return [TOP_ZONE_Y, BOT_ZONE_Y];
+  if (nRows === 3) return [TOP_ZONE_Y, PITCH_MID_Y, BOT_ZONE_Y];
+  // Fallback for > 3 rows
+  const top = _TOP_PB_BOTTOM + 10;
+  const bot = _BOT_PB_TOP - 10;
+  const step = (bot - top) / (nRows - 1);
   return Array.from({ length: nRows }, (_, i) => top + step * i);
 }
  
+// Full top-down football pitch — clean lines, colour tinted to the team.
+// Mirrors the reference layout: outer boundary with corner arcs, halfway line,
+// center circle + dot, top & bottom penalty areas with goal areas, penalty
+// spots, penalty-arc "D" shapes, and a center-spot-to-penalty-box connector.
 function PitchBackground({ color }) {
-  const pitchColor = getPitchColor(color);
-  const cornerR = 10;
-  const circleR = 34; // half-pitch centre circle, cut by the halfway line
-  const dArcR = 28; // penalty arc "D" bulging above the box's open edge
- 
+  const pc = getPitchColor(color); // possibly darkened for readability
+  const L = PITCH_LEFT, R = PITCH_RIGHT, T = PITCH_TOP, B = PITCH_BOTTOM;
+  const CX = PITCH_CX;
+  const CR = PITCH_CR;   // corner arc
+  const CCR = PITCH_CCR; // center circle
+  const PBW2 = PITCH_PB_W / 2; // half penalty-box width
+  const GBW2 = PITCH_GB_W / 2; // half goal-area width
+  const MID  = PITCH_MID_Y;
+  const PBH  = PITCH_PB_H;
+  const GBH  = PITCH_GB_H;
+  const PS   = PITCH_PS;   // penalty spot from goal line
+  const DA   = PITCH_DARC; // D-arc radius
+
   return (
     <g
-      stroke={pitchColor}
+      stroke={pc}
       strokeWidth={PITCH_STROKE_WIDTH}
       fill="none"
       opacity={PITCH_OPACITY}
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {/* pitch boundary — square top corners (this edge is the halfway-line
-          cut, so it has no corner arc), rounded bottom corners (the real
-          goal-line corners) */}
-      <path
-        d={`
-          M ${PITCH_LEFT} ${PITCH_TOP}
-          L ${PITCH_RIGHT} ${PITCH_TOP}
-          L ${PITCH_RIGHT} ${PITCH_BOTTOM - cornerR}
-          A ${cornerR} ${cornerR} 0 0 1 ${PITCH_RIGHT - cornerR} ${PITCH_BOTTOM}
-          L ${PITCH_LEFT + cornerR} ${PITCH_BOTTOM}
-          A ${cornerR} ${cornerR} 0 0 1 ${PITCH_LEFT} ${PITCH_BOTTOM - cornerR}
-          Z
-        `}
-      />
-      {/* halfway line is just the pitch's own top edge above; the centre
-          circle is cut in half by it, bulging down into the pitch */}
-      <path
-        d={`M ${CENTER_X - circleR} ${PITCH_TOP} A ${circleR} ${circleR} 0 0 0 ${
-          CENTER_X + circleR
-        } ${PITCH_TOP}`}
-      />
-      <circle cx={CENTER_X} cy={PITCH_TOP} r="1.6" fill={color} stroke="none" />
- 
-      {/* goal box, flush with the bottom (goal-line) edge */}
-      <path
-        d={`M ${CENTER_X - BOX_WIDTH / 2} ${PITCH_BOTTOM} L ${CENTER_X - BOX_WIDTH / 2} ${BOX_TOP} L ${
-          CENTER_X + BOX_WIDTH / 2
-        } ${BOX_TOP} L ${CENTER_X + BOX_WIDTH / 2} ${PITCH_BOTTOM}`}
-      />
-      {/* penalty arc — the "D" bulging up off the box's open edge */}
-      <path
-        d={`M ${CENTER_X - dArcR} ${BOX_TOP} A ${dArcR} ${dArcR} 0 0 1 ${
-          CENTER_X + dArcR
-        } ${BOX_TOP}`}
-      />
+      {/* ── Outer boundary with rounded corners ── */}
+      <path d={`
+        M ${L + CR} ${T}
+        L ${R - CR} ${T}
+        Q ${R} ${T}  ${R} ${T + CR}
+        L ${R} ${B - CR}
+        Q ${R} ${B}  ${R - CR} ${B}
+        L ${L + CR} ${B}
+        Q ${L} ${B}  ${L} ${B - CR}
+        L ${L} ${T + CR}
+        Q ${L} ${T}  ${L + CR} ${T}
+        Z
+      `} />
+
+      {/* ── Halfway line ── */}
+      <line x1={L} y1={MID} x2={R} y2={MID} />
+
+      {/* ── Center circle + center dot ── */}
+      <circle cx={CX} cy={MID} r={CCR} />
+      <circle cx={CX} cy={MID} r={2.2} fill={pc} stroke="none" />
+
+      {/* ── Vertical connector: center spot → top of bottom penalty box ── */}
+      <line x1={CX} y1={MID} x2={CX} y2={B - PBH} />
+
+      {/* ── TOP penalty area ── */}
+      <rect x={CX - PBW2} y={T}        width={PITCH_PB_W} height={PBH} />
+      {/* top goal area */}
+      <rect x={CX - GBW2} y={T}        width={PITCH_GB_W} height={GBH} />
+      {/* top penalty spot */}
+      <circle cx={CX} cy={T + PS}  r={1.8} fill={pc} stroke="none" />
+      {/* top penalty D-arc (bulges DOWN away from the top goal line) */}
+      <path d={`
+        M ${CX - DA} ${T + PBH}
+        A ${DA} ${DA} 0 0 0 ${CX + DA} ${T + PBH}
+      `} />
+
+      {/* ── BOTTOM penalty area ── */}
+      <rect x={CX - PBW2} y={B - PBH} width={PITCH_PB_W} height={PBH} />
+      {/* bottom goal area */}
+      <rect x={CX - GBW2} y={B - GBH} width={PITCH_GB_W} height={GBH} />
+      {/* bottom penalty spot */}
+      <circle cx={CX} cy={B - PS}  r={1.8} fill={pc} stroke="none" />
+      {/* bottom penalty D-arc (bulges UP away from the bottom goal line) */}
+      <path d={`
+        M ${CX - DA} ${B - PBH}
+        A ${DA} ${DA} 0 0 1 ${CX + DA} ${B - PBH}
+      `} />
     </g>
   );
 }

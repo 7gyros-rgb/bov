@@ -11,6 +11,7 @@ export default function Admin() {
   const [pwError, setPwError] = useState("");
 
   const [teams, setTeams] = useState(null);
+  const [layout, setLayout] = useState("vertical");
   const [loadError, setLoadError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [kvConfigured, setKvConfigured] = useState(true);
@@ -32,6 +33,7 @@ export default function Admin() {
       const res = await fetch(`/api/state?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       setTeams(data.teams);
+      setLayout(data.layout || "vertical");
       setKvConfigured(data.kvConfigured);
       setLoadError("");
     } catch (e) {
@@ -46,19 +48,22 @@ export default function Admin() {
     setPwError("");
   }
 
-  function scheduleSave(nextTeams) {
+  function scheduleSave(nextTeams, nextLayout) {
+    const nl = nextLayout !== undefined ? nextLayout : layout;
     setTeams(nextTeams);
+    if (nextLayout !== undefined) setLayout(nextLayout);
     setSaveStatus("Saving…");
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => save(nextTeams), 500);
+    saveTimer.current = setTimeout(() => save(nextTeams, nl), 500);
   }
 
-  async function save(nextTeams) {
+  async function save(nextTeams, nextLayout) {
+    const nl = nextLayout !== undefined ? nextLayout : layout;
     try {
       const res = await fetch("/api/state", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Admin-Key": pw },
-        body: JSON.stringify({ teams: nextTeams }),
+        body: JSON.stringify({ teams: nextTeams, layout: nl }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -81,6 +86,11 @@ export default function Admin() {
 
   function updateTeam(id, patch) {
     scheduleSave(teams.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }
+
+  function toggleLayout() {
+    const next = layout === "vertical" ? "horizontal" : "vertical";
+    scheduleSave(teams, next);
   }
 
   function updatePlayer(teamId, index, value) {
@@ -153,10 +163,22 @@ export default function Admin() {
           <h1>Scoreboard Admin</h1>
           <p className="muted">Changes save automatically and show up on the overlay in ~1 second.</p>
         </div>
-        <div className="links">
-          <a href="/overlay" target="_blank" rel="noreferrer">
-            Open overlay →
-          </a>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            className="icon-btn"
+            style={{
+              fontWeight: 700,
+              fontSize: 14,
+              padding: "8px 16px",
+              background: layout === "horizontal" ? "#a5d8ff" : "#d3f9d8",
+            }}
+            onClick={toggleLayout}
+          >
+            {layout === "horizontal" ? "↔️ Horizontal (click for ↕️)" : "↕️ Vertical (click for ↔️)"}
+          </button>
+          <div className="links">
+            <a href="/overlay" target="_blank" rel="noreferrer">Open overlay →</a>
+          </div>
         </div>
       </div>
 
